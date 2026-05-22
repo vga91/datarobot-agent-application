@@ -47,14 +47,13 @@ general:
             # external:
             #   id: "my-agent-id"
             #   url: "https://my-agent-id.example.com/a2a/"
-# To connect this agent to a remote A2A agent, uncomment the block below and add the
-# function group name to the workflow's tool_names list.
-# For Okta XAA auth, use auth_provider: okta_auth instead of datarobot_auth.
-# function_groups:
-#   remote_agent:
-#     _type: authenticated_a2a_client
-#     url: "https://app.datarobot.com/api/v2/deployments/<deployment-id>/directAccess/a2a/"
-#     auth_provider: datarobot_auth
+
+# Declare local Python files as functional backend components
+function_groups:
+  my_neo4j_tool:
+    _type: local_python_function
+    function: agent.neo4j_tool.query_knowledge_graph
+
 llms:
   datarobot_llm:
     _type: datarobot-llm-component
@@ -68,12 +67,15 @@ llms:
     #     - use_datarobot_llm_gateway: true
     #       llm_default_model: anthropic/claude-opus-4-20250514
     #   num_retries: 1
+
 workflow:
   _type: langgraph_agent
   llm_name: datarobot_llm
   description: LangGraph planner/writer agent
-  # tool_names:
-  #   - remote_agent
+  # Bind your custom Neo4j tool component explicitly to this agent workflow sequence
+  tool_names:
+    - my_neo4j_tool
+
 authentication:
   datarobot_auth:
     _type: datarobot_api_key

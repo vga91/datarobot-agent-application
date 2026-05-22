@@ -80,12 +80,18 @@ async def langgraph_agent(
             authorization_context=authorization_context,
         )
         async with mcp_tools_context(mcp_config) as mcp_tools:
-            tools = workflow_tools + mcp_tools
+            # --- START NEW NEO4J INTEGRATION ---
+            from agent.neo4j_tool import query_knowledge_graph
+            
+            # Aggiungiamo il tool di Neo4j direttamente alla lista finale dei tool
+            tools = workflow_tools + mcp_tools# + [query_knowledge_graph]
+            # --- END NEW NEO4J INTEGRATION ---
+
             agent = MyAgent(
                 llm=llm,
                 verbose=config.verbose,
                 forwarded_headers=forwarded_headers,
-                tools=tools,
+                tools=tools, # Ora include nativamente Neo4j
             )
 
             async for event, pipeline_interactions, usage_metrics in agent.invoke(

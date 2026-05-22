@@ -61,8 +61,9 @@ def graph_factory(
     llm: BaseChatModel, tools: list[BaseTool], verbose: bool = False
 ) -> StateGraph[MessagesState]:
     
-    # Prompt instructing the planner to output Cypher matching the recommendations database schema.
-    # Note the escaped double-curly braces {{ and }} around the cypher block example.
+    # Prompt instructing the planner to output Cypher within a JSON wrapper block
+    # Note the escaped double-curly braces {{ and }} around the cypher block example 
+    # to prevent LangChain from raising a KeyError for missing template variables.
     planner_prompt = ChatPromptTemplate.from_messages([
         (
             "system",
@@ -74,18 +75,6 @@ def graph_factory(
                 "{{\n"
                 "  \"cypher\": \"YOUR_QUERY_HERE\"\n"
                 "}}\n"
-                "\n"
-                "To query the recommendations database successfully, follow this EXACT schema:\n"
-                "- Nodes:\n"
-                "  - (:Movie) with properties: 'title', 'year', 'runtime', 'plot', 'imdbRating'\n"
-                "  - (:Person) with property: 'name'\n"
-                "  - (:Genre) with property: 'name'\n"
-                "- Relationships:\n"
-                "  - (:Person)-[:DIRECTED]->(:Movie)\n"
-                "  - (:Person)-[:ACTED_IN]->(:Movie)\n"
-                "  - (:Movie)-[:IN_GENRE]->(:Genre)\n"
-                "\n"
-                "Do NOT use properties like 'releaseYear', 'boxOffice', 'description' or relationship labels like 'STARS', 'RELEASED_IN', 'HAS_GENRE'. They do not exist.\n"
                 "Always check the database results first to collect accurate data."
             )
         ),
@@ -98,8 +87,8 @@ def graph_factory(
         response = await planner_chain.ainvoke({"messages": state["messages"]})
         text_content = getattr(response, "content", "")
 
-        # This robust pattern captures standard JSON string fields including escaped characters (like \")
-        cypher_match = re.search(r'"cypher"\s*:\s*"((?:[^"\\]|\\.)*)"', text_content)
+        # Regex parsing check to extract the query from the assistant response
+        cypher_match = re.search(r'"cypher"\s*:\s*"([^"]+)"', text_content)
         if not cypher_match:
             # We construct backticks dynamically to prevent any markdown rendering issues in the UI
             backticks = chr(96) * 3
@@ -107,9 +96,8 @@ def graph_factory(
             cypher_match = re.search(pattern, text_content, re.DOTALL)
 
         if cypher_match:
-            # Safely replace escape characters and backslashes with actual strings
-            raw_query = cypher_match.group(1)
-            extracted_query = raw_query.replace('\\"', '"').replace('\\n', '\n').replace('\\t', '\t').strip()
+            # Cleanup backslashes and escape sequences
+            extracted_query = cypher_match.group(1).replace("\\n", "\n").replace('\\"', '"').strip()
             print(f"\n[INTERCEPTOR LOG]: Executing Cypher query on Neo4j Cluster:\n{extracted_query}\n", flush=True)
             
             # Programmatic tool caller supporting raw functions, async functions, and LangChain Tool wrapper objects
@@ -126,13 +114,9 @@ def graph_factory(
             except Exception as e:
                 db_result = f"Local execution failed: {str(e)}"
             
-            # Swapping out ToolMessage for HumanMessage to cleanly bypass DataRobot gateway validation
-            tool_msg = HumanMessage(
-                content=(
-                    f"The Cypher query was executed against the Neo4j database successfully.\n"
-                    f"Database Results:\n{db_result}\n\n"
-                    f"Please use the database results above to plan the outline."
-                )
+            tool_msg = ToolMessage(
+                content=f"Database Results:\n{db_result}",
+                tool_call_id="manual_intercept_id"
             )
             
             # Loop the data payload back into the planner node to synthesize the outline
