@@ -14,6 +14,7 @@ dependencies = [
     "opentelemetry-sdk>=1.33.0,<2.0.0",
     "anyio>=4.11.0,<4.12.0", # Fix: ImportError: `set_current_async_library`
     "packaging>=25.0,<26.0",
+    "langchain-neo4j>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -194,6 +195,9 @@ override-dependencies = [
     # Unlock latest langgraph
     "langgraph>=1.1.0,<2.0.0",
     "langgraph-prebuilt>=1.0.0,<2.0.0",
+
+    "langchain-neo4j>=0.1.0", 
+    "neo4j>=5.0.0",
 
     # Keep this in sync with the ag-ui-protocol version in fastapi_server/pyproject.toml of the
     # recipe-datarobot-agent-application.
